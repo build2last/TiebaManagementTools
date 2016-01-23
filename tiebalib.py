@@ -15,7 +15,7 @@ class data:
     tbs_url = "http://tieba.baidu.com/dc/common/tbs"
     cookie = ''
     tbs = ''
-    UA = ''
+    UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/47.0.2526.106 Safari/537.36'
     fid = ''
     threads = []
     post = []
