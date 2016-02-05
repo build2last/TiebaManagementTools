@@ -80,10 +80,12 @@ def blockid(tid, pid, username):#封禁
     print r.text
     return status
 
-def get_thread_list():
+def get_thread_list(pn=50):
     threads = []
     regular_expression = '{&quot;author_name&quot;.*?</a>'
-    content = requests.get('http://tieba.baidu.com/f?kw='+data.aim_tieba+'&ie=utf-8').content
+    payload = {'pn':pn, 'ie':'utf-8'}
+    headers = {'Cookie':data.cookie,'User-Agent':data.UA}
+    content = requests.get('http://tieba.baidu.com/f?kw='+data.aim_tieba,params=payload, headers=headers).content
     first_match = re.findall(regular_expression, content)
     for i in first_match:
         thread = {}
