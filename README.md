@@ -50,10 +50,10 @@ image_filter(text)
 ```
 
 ## 管理工具使用方法
-* 打开machine.py 将在config函数中填入目标贴吧与cookie
+* 打开machine.py 在config函数中填入目标贴吧与cookie
 * 完善作者与贴子内容关键词(keywords.py与author_keywords.py)
 * 运行machine.py
 
 ## 爬虫工具使用方法
-* 打开spider.py 将在config函数中填入目标贴吧与cookie 运行spider.py
+* 打开spider.py 在config函数中填入目标贴吧与cookie 运行spider.py
 * 爬取的数据使用sqlite3存在tiebadatabase.db中
