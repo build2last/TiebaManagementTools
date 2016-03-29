@@ -66,8 +66,7 @@ def check_last_content(tid):
 config('','')
 loop_times = 0
 while True:
-    t1 = time.time()  
-    keyword_processor()
+    t1 = time.time()
     thread_list = get_thread_list()
     for i in thread_list[0:15]:
         h = threading.Thread(target=handle_topic, args=(i,))
