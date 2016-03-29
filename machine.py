@@ -4,28 +4,34 @@ import threading
 import json
 from keywords import *
 from author_keywords import *
-
+import os
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
+def restart_program():
+    python = sys.executable
+    os.execl(python, python, * sys.argv)
 def handle_post(post):
     for dic in keywords:
         if re.search(dic["keyword"],post["text"]) and dic["post"]:
             if dic["delete"]:
                 delete_post(post["tid"],post["pid"])
                 with open('./delete_log', 'a') as file:
-                    file.write(str(dic)+str(post))
+                    file.write(str(dic)+str(post)+'\n')
             if dic["block"]:
                 blockid(post["tid"],post["pid"],post["author"])
                 with open('./block_log', 'a') as file:
-                    file.write(str(dic)+str(post))
+                    file.write(str(dic)+str(post)+'\n')
     for dic in author_keywords:
         if re.search(dic["author"],post["author"]):
             if dic["delete"]:
                 delete_post(post["tid"],post["pid"])
                 with open('./delete_log', 'a') as file:
-                    file.write(str(dic)+str(post))
+                    file.write(str(dic)+str(post)+'\n')
             if dic["block"]:
                 blockid(post["tid"],post["pid"],post["author"])
                 with open('./block_log', 'a') as file:
-                    file.write(str(dic)+str(post))
+                    file.write(str(dic)+str(post)+'\n')
                     
 def handle_topic(thread):
     for dic in keywords:
@@ -33,22 +39,22 @@ def handle_topic(thread):
             if dic["delete"]:
                 delete_thread(thread["tid"])
                 with open('./delete_log', 'a') as file:
-                    file.write(str(dic)+str(thread))
+                    file.write(str(dic)+str(thread)+'\n')
             if dic["block"]:
                 blockid(thread["tid"],thread["pid"],thread["author"])
                 with open('./block_log', 'a') as file:
-                    file.write(str(dic)+str(thread))
+                    file.write(str(dic)+str(thread)+'\n')
 
     for dic in author_keywords:
         if re.search(dic["author"],thread["author"]):
             if thread["delete"]:
                 delete_thread(thread["tid"])
                 with open('./delete_log', 'a') as file:
-                    file.write(str(dic)+str(thread))
+                    file.write(str(dic)+str(thread)+'\n')
             if thread["block"]:
                 blockid(thread["tid"],thread["pid"])
                 with open('./block_log', 'a') as file:
-                    file.write(str(dic)+str(thread))
+                    file.write(str(dic)+str(thread)+'\n')
 def check_last_content(tid):
     t = get_thread_last_content(tid)
     if t:
@@ -72,7 +78,7 @@ while True:
         t.start()
     while threading.active_count() > 1:
         if (time.time() - t1) > 10:
-            break
+            restart_program()
     loop_times += 1
 
     print u'完成{0}次循环'.format(loop_times)
