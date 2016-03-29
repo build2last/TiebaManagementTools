@@ -5,6 +5,8 @@ import re
 import json
 import HTMLParser
 import threading
+import functools
+import signal
 class data:
     login_url = ''
     delete_thread_url = 'http://tieba.baidu.com/f/commit/thread/delete'
@@ -23,6 +25,23 @@ class data:
     deleted_post = 0
     error_times = 0
     blocked = 0
+
+def timeout(seconds, error_message = 'Function call timed out'):
+   def decorated(func):
+       def _handle_timeout(signum, frame):
+          # raise TimeoutError(error_message)
+          pass
+       def wrapper(*args, **kwargs):
+           signal.signal(signal.SIGALRM, _handle_timeout)
+           signal.alarm(seconds)
+           try:
+               result = func(*args, **kwargs)
+           finally:
+               signal.alarm(0)
+           return result
+       return functools.wraps(func)(wrapper)
+   return decorated
+
 def config(aim_tieba,cookie):#读配置函数
     data.cookie = cookie
     data.aim_tieba = aim_tieba
@@ -67,10 +86,10 @@ def delete_post(tid, pid):#批量删帖接口
     print r.text
     return status
 
-def blockid(tid, pid, username):#封禁
+def blockid(tid, pid, username,reason="恶意刷屏、挖坟、水贴、抢楼、带节奏等，给予封禁处罚"):#封禁
     url = data.block_id
     headers = {'Cookie':data.cookie,'User-Agent':data.UA}
-    payload = {'day':1,'ie':'utf8','fid':data.fid,'tbs':data.tbs, 'user_name[]':username,'pid[]':pid,'reason':'恶意刷屏、挖坟、水贴、抢楼、带节奏等，给予封禁处罚'}
+    payload = {'day':1,'ie':'utf8','fid':data.fid,'tbs':data.tbs, 'user_name[]':username,'pid[]':pid,'reason':reason}
     r = requests.post(url, data = payload, headers = headers)
     status = json.loads(r.text)
     if status['errno'] == 0:
