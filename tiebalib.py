@@ -99,7 +99,7 @@ def blockid(tid, pid, username,reason="恶意刷屏、挖坟、水贴、抢楼�
     print r.text
     return status
 
-def get_thread_list(pn=50):
+def get_thread_list(pn=0):
     threads = []
     regular_expression = '{&quot;author_name&quot;.*?</a>'
     payload = {'pn':pn, 'ie':'utf-8'}
