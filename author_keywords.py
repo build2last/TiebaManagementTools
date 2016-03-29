@@ -1,4 +1,4 @@
 #coding=utf-8
 author_keywords = [
-{"author":"username","block":1,"delete":1}
+{"author":u"username","block":1,"delete":1}
 ]
