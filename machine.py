@@ -2,6 +2,8 @@
 from tiebalib import *
 import threading
 import json
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
 from keywords import *
 from author_keywords import *
 import os
@@ -32,7 +34,7 @@ def handle_post(post):
                 blockid(post["tid"],post["pid"],post["author"])
                 with open('./block_log', 'a') as file:
                     file.write(str(dic)+str(post)+'\n')
-                    
+
 def handle_topic(thread):
     for dic in keywords:
         if re.search(dic["keyword"],thread["topic"]) and dic["topic"]:
@@ -67,17 +69,20 @@ config('','')
 loop_times = 0
 while True:
     t1 = time.time()
-    thread_list = get_thread_list()
-    for i in thread_list[0:15]:
-        h = threading.Thread(target=handle_topic, args=(i,))
-        h.start()
-        while threading.active_count() > 20:
-            pass
-        t = threading.Thread(target=check_last_content, args=(i["tid"],))
-        t.start()
-    while threading.active_count() > 1:
-        if (time.time() - t1) > 10:
-            restart_program()
+    try:
+        thread_list = get_thread_list()
+        pool = ThreadPool(15)
+        pool.map(handle_topic,thread_list[0:15])
+        pool.close()
+        pool.join()
+        pools = ThreadPool(15)
+        pools.map(check_last_content,[i["tid"] for i in thread_list[0:15]])
+        pools.close()
+        pools.join()
+    except KeyboardInterrupt as e:break
+    except:pass
+    finally:
+        pass
     loop_times += 1
 
     print u'完成{0}次循环'.format(loop_times)
