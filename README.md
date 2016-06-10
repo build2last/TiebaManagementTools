@@ -40,14 +40,6 @@ get_thread_content(tid)
 ```
 get_thread_last_content(tid)
 ```
-* 送入一个关键词和图片链接 通过百度识图判断是否符合关键字内容 
-```
-image_check(keyword,url)
-```
-* 贴吧图片链接过滤器 送入贴子内容 返回所有不包括表情图片链接  
-```
-image_filter(text)
-```
 
 ## 管理工具使用方法
 * 打开machine.py 在config函数中填入目标贴吧与cookie
