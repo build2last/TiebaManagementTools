@@ -3,12 +3,16 @@ import time
 import requests
 import re
 import json
-import HTMLParser
 import threading
 import functools
 import signal
+from bs4 import BeautifulSoup
+from html.parser import HTMLParser
+import jieba
+import math
 class data:
     login_url = ''
+    is_tomb = 0
     delete_thread_url = 'http://tieba.baidu.com/f/commit/thread/delete'
     delete_post_url_1 = 'http://tieba.baidu.com/f/commit/post/delete'
     delete_post_url_2 = 'http://tieba.baidu.com/bawu2/postaudit/audit'
@@ -25,6 +29,38 @@ class data:
     deleted_post = 0
     error_times = 0
     blocked = 0
+def check_similarity(text1,text2):
+    raw1 = jieba.cut(text1)
+    raw2 = jieba.cut(text2)
+    dict1 ={}
+    dict2 ={}
+    for i in raw1:
+        if i not in dict1:
+            dict1[i] = 1
+        else:
+            dict1[i] +=1
+    for i in raw2:
+        if i not in dict2:
+            dict2[i] = 1
+        else:
+            dict2[i] +=1
+    for i in dict1:
+        if i not in dict2:
+            dict2[i] = 0
+    for i in dict2:
+        if i not in dict1:
+            dict1[i] = 0
+    mod1 = mod2 = 0
+    for i in dict1:
+        mod1 += dict1[i]*dict1[i]
+    for i in dict2:
+        mod2 += dict2[i]*dict2[i]
+    dot_product = 0
+    for i in dict1:
+        dot_product += dict1[i]*dict2[i]
+    if mod1*mod2 != 0:
+        return dot_product/(math.sqrt(mod1*mod2))
+    else:return 0
 
 def timeout(seconds, error_message = 'Function call timed out'):
    def decorated(func):
@@ -50,13 +86,12 @@ def config(aim_tieba,cookie):#读配置函数
 
 def get_tbs():
     headers = {'Cookie':data.cookie,'User-Agent':data.UA}
-    content_json = json.loads(requests.get(data.tbs_url, headers = headers).content)
+    content_json = json.loads(requests.get(data.tbs_url, headers = headers).text)
     data.tbs = content_json['tbs']
     return content_json['tbs']
-
 def get_fid():
     headers = {'Cookie':data.cookie,'User-Agent':data.UA}
-    content = requests.get('http://tieba.baidu.com/'+data.aim_tieba, headers = headers).content
+    content = requests.get('http://tieba.baidu.com/'+data.aim_tieba, headers = headers).text
     fid = re.search('"forum_id":(.*?),', content).group(1)
     return fid
 
@@ -70,7 +105,7 @@ def delete_thread(tid):#管理工具删整贴接口
         data.deleted += 1
     else:
         data.error_times +=1
-    print r.text
+    print(r.text)
     return status
 
 def delete_post(tid, pid):#批量删帖接口
@@ -83,7 +118,7 @@ def delete_post(tid, pid):#批量删帖接口
         data.deleted_post += 1
     else:
         data.error_times += 1
-    print r.text
+    print(r.text)
     return status
 
 def blockid(tid, pid, username,reason="恶意刷屏、挖坟、水贴、抢楼、带节奏等，给予封禁处罚"):#封禁
@@ -96,97 +131,103 @@ def blockid(tid, pid, username,reason="恶意刷屏、挖坟、水贴、抢楼�
         data.blocked += 1
     else:
         data.error_times += 1
-    print r.text
+    print(r.text)
     return status
 
 def get_thread_list(pn=0):
     threads = []
-    regular_expression = '{&quot;author_name&quot;.*?</a>'
     payload = {'pn':pn, 'ie':'utf-8'}
     headers = {'Cookie':data.cookie,'User-Agent':data.UA}
-    content = requests.get('http://tieba.baidu.com/f?kw='+data.aim_tieba,params=payload, headers=headers).content
-    first_match = re.findall(regular_expression, content)
-    for i in first_match:
-        thread = {}
-        tid = re.search('href="/p/(.*?)"', i).group(1)
-        thread["tid"] = tid
-        pid = re.search('&quot;first_post_id&quot;:(.*?),', i)
-        if pid:
-            pid = pid.group(1)
-            thread["pid"] = pid
+    content = requests.get('http://tieba.baidu.com/f?kw='+data.aim_tieba,params=payload, headers=headers).text
+    raws = re.findall('thread_list clearfix([\s\S]*?)创建时间"',content)
+    for raw in raws:
+        tid = re.findall('href="/p/(.*?)"', raw)
+        pid = re.findall('&quot;first_post_id&quot;:(.*?),', raw)
+        topic = re.findall('href="/p/.*?" title="([\s\S]*?)"', raw)
+        author = re.findall('title="主题作者: (.*?)"', raw)
+        reply_num = re.findall('&quot;reply_num&quot;:(.*?),',raw)
+        #print(len(tid),len(pid),len(topic),len(author),len(reply_num))
+        if len(tid)==len(pid)==len(topic)==len(author)==len(reply_num):
+            dic = {"tid":tid[0],"pid":pid[0],"topic":topic[0],"author":author[0],"reply_num":reply_num[0]}
+            threads.append(dic)
         else:
-            thread["pid"] = '0'
-        topic = re.search('" title="(.*?)" target', i)
-        if topic:
-            thread["topic"] = topic.group(1)
-        author = re.search('&quot;author_name&quot;:&quot;(.*?)&quot;', i)
-        if author:
-            thread["author"] = author.group(1).decode('unicode_escape')
-        reply_num = re.search('&quot;reply_num&quot;:(.*?),',i)
-        if reply_num:
-            thread["reply_num"] = reply_num.group(1)
-        threads.append(thread)
+            print('error')
+            print(raw)
     return threads
-
 def get_page_content(thread, pn):
     url = 'http://tieba.baidu.com/p/'+thread
     payload = {'pn':pn}
     headers = {'Cookie':data.cookie,'User-Agent':data.UA}
-    content = requests.get(url, params=payload, headers=headers).content
-    return content
-def process_html(content,tid):
-    html_parser = HTMLParser.HTMLParser()
-    processed = []
-    for post_info in content:
-        dic = {}
-        t = json.loads(html_parser.unescape(post_info[0]))
-        dic["text"] = post_info[1].strip()#去除开头空格
-        dic["tid"] = tid
-        dic["author"] = t["author"]["user_name"]
-        dic["pid"] = t["content"]["post_id"]
-        dic["date"] = t["content"]["date"]
-        dic["floor"] = t["content"]["post_no"]
-        dic["comment_num"] = t["content"]["comment_num"]
-        processed.append(dic)
-    return processed
-def get_thread_content(thread):
+    return requests.get(url, params=payload, headers=headers).text
+def process_html(post_info,tid):
+    dic = {}
+    t = json.loads(post_info[0])
+    dic["text"] = post_info[1].strip()#去除开头空格
+    dic["tid"] = tid
+    dic["author"] = t["author"]["user_name"]
+    dic["uid"] = t["author"]["user_id"]
+    dic["sex"] = t["author"]["user_sex"]
+    dic["exp"] = t["author"]["cur_score"]
+    dic["level"] = t["author"]["level_id"]
+    dic["pid"] = t["content"]["post_id"]
+    dic["date"] = t["content"]["date"]
+    dic["voice"] = t["content"]["ptype"]
+    dic["floor"] = t["content"]["post_no"]
+    dic["device"] = t["content"]["open_type"]
+    dic["comment_num"] = t["content"]["comment_num"]
+    dic["sign"] = post_info[2]
+    dic["imgs"] = post_info[3]
+    dic["smiley"] = post_info[4]
+    return dic
+def get_thread_last_content(thread,pn=9999999):
     t2 = time.time()
-    post_list = []
-    all_page_number = '1'
-    content_page_1 = get_page_content(thread,'1')#读取第一页
-    search_pn = re.search('pn=(.*?)">尾页</a>', content_page_1)
-    if search_pn:
-        all_page_number = search_pn.group(1)#获取页数
-    for pn in range(1,int(all_page_number)+1):
-        content = get_page_content(thread, pn)
-        separate = re.findall('l_post j_l_post l_post_bright[\s\S]*?\'({[\s\S]*?})\'[\s\S]*?d_post_content j_d_post_content  clearfix">(.*?)</div>', content)
-        post_info = process_html(separate, thread)
-        post_list += post_info
-    return post_list
+    last_page = []
+    content =BeautifulSoup(get_page_content(thread,pn),'lxml')
+    author_info = content.find_all("div",class_=re.compile("l_post"))
+    texts = content.find_all("div",class_=re.compile("j_d_post_content"))
+    if not texts:
+        return 0
+    if len(author_info) == len(texts):
+        posts = zip(texts,author_info)
+    else:return 0
+    for post_raw in posts:
+        text = ''
+        for i in post_raw[0].strings:
+            text = text+i
+        user_sign = post_raw[0].parent.parent.parent.find_all(class_='j_user_sign')
+        if user_sign:
+            user_sign = user_sign[0]["src"]
+        imgs = post_raw[0].find_all("img",class_="BDE_Image")
+        img = []
+        if imgs:
+            for i in imgs:
+                img.append(i["src"])
+        smileys = post_raw[0].find_all('img',class_='BDE_Smiley')
+        smiley = []
+        if smileys:
+            for i in smileys:
+                smiley.append(i["src"])
+        post_info = [post_raw[1]["data-field"],text,user_sign,img,smiley]
+        post = process_html(post_info, thread)
+        last_page.append(post)
+    return last_page
 
-def get_thread_last_content(thread):
-    t2 = time.time()
-    post_list = []
-    content = get_page_content(thread,'9999999')
-    topic = ''
-    if re.search('core_title_txt(.*?)title="(.*?)"', content):
-        topic = re.search('core_title_txt(.*?)title="(.*?)"', content).group(2)
-    separate = re.findall('l_post j_l_post l_post_bright[\s\S]*?\'({[\s\S]*?})\'[\s\S]*?d_post_content j_d_post_content  clearfix">(.*?)</div>', content)
-    if not separate:#偶见最后一页无内容
-        return
-    separate = [separate[-1],]
-    post_info = process_html(separate, thread)
-    for i in post_info:
-        i["topic"] = topic
-    post_list += post_info
-    return post_list
-
-def image_check(keyword,url):
-    url = 'http://image.baidu.com/n/pc_search?queryImageUrl='+url
-    r = requests.get(url)   
-    if re.search(keyword, r.content):
-        return 1
-    return 0
-def image_filter(text):
-    url = re.findall('http://imgsrc.baidu.com/forum/w%3D580/sign.*?\.jpg', text)
-    return url
+def check_same_author(threads):
+    pthreads = threads[:]
+    handled = []
+    temp =[]
+    while len(pthreads)>=1:
+        i = 0
+        author = pthreads[0]["author"]
+        temp.append(pthreads[0])
+        pthreads.pop(0)
+        while i<len(pthreads):
+            if pthreads[i]["author"]==author:
+                temp.append(pthreads[i])
+                pthreads.pop(0)
+            i = i + 1
+            temp.sort(key=lambda x:int(x["reply_num"]))
+        if temp[0]["author"] != '----':
+            handled.append(temp)
+        temp=[]
+    return handled
